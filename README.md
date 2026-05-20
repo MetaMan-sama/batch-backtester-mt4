@@ -1,72 +1,71 @@
-# Quantitative Mean Reversion Signals — MQL4 Script
+# Batch Backtester — MQL4 Script
 
-A MetaTrader 4 script that detects **statistically extreme price deviations** from a rolling mean using standard deviation analysis and fires alerts when price moves beyond a configurable number of standard deviations — signalling potential mean reversion setups.
+A MetaTrader 4 script that automates the generation of **`.set` configuration files** for bulk backtesting by computing every combination of user-defined symbols, timeframes, risk percentages, stop losses, and take profits.
 
 ---
 
 ## Overview
 
-This script applies a quantitative mean reversion framework directly inside MT4. On each cycle it computes the rolling mean and population standard deviation of closing prices over a configurable lookback window, then measures how many standard deviations the current price sits from that mean. When the deviation exceeds the threshold, it alerts whether price is extended above or below — providing a statistically grounded entry signal for mean reversion strategies.
+Manually creating settings files for MT4 Strategy Tester across multiple parameter combinations is time-consuming and error-prone. This script accepts comma-separated lists for each parameter dimension, parses them using `StringSplit()`, and iterates through every combination to write a formatted `.set` file to the MT4 Files sandbox — ready to be loaded directly into the Strategy Tester.
 
 ---
 
 ## Features
 
-- **Rolling mean and standard deviation** — computed from scratch each cycle using `iClose()` over `LookbackPeriod` bars
-- **Z-score style deviation measurement** — `|price − mean| / stdDev` compared against `DeviationThreshold`
-- **Directional alerts** — distinguishes between deviation above and below the mean
-- **Three notification channels:** sound alert, email, and mobile push
-- **Lightweight loop** — polls once per minute (`Sleep(60000)`)
-- Logs current price, mean, standard deviation, and deviation magnitude to the MT4 **Experts** tab
+- **Full combinatorial generation** — nested loops produce every symbol × timeframe × risk × SL × TP combination
+- **Automatic `.set` file creation** — files written to the MT4 Files sandbox via `FileOpen()` / `FileWrite()`
+- **Comma-separated list inputs** — no code changes needed to add new parameter values
+- **Input validation** — aborts if any list is empty
+- **Combination counter** — logs total files generated on completion
+- All output and errors logged to the MT4 **Experts** tab
 
 ---
 
 ## How It Works
 
-1. Every minute, `CalculateStats()` iterates over `LookbackPeriod` closing prices to compute:
-   - `mean = sum / period`
-   - `stdDev = sqrt((sumSq / period) − mean²)` (population standard deviation)
-2. The current close is fetched via `iClose(..., 0)`
-3. Deviation is computed: `deviation = |currentPrice − mean| / stdDev`
-4. If `deviation >= DeviationThreshold`:
-   - `currentPrice > mean` → **Extreme Deviation Above Mean**
-   - `currentPrice < mean` → **Extreme Deviation Below Mean**
-5. Alert message includes price, mean, stdDev, and deviation in standard deviations
+1. Five input strings are parsed into arrays using `StringSplit()` with `,` as delimiter
+2. Five nested loops iterate every combination across: symbols × timeframes × risk percentages × stop losses × take profits
+3. For each combination, `GenerateSettingsFile()` constructs a filename in the format `SYMBOL_TF_RISK_SL_TP.set` and writes a structured `[Inputs]` block via `FileWrite()`
+4. The total count of generated files is printed to the Experts log on completion
 
 ---
 
 ## Input Parameters
 
-| Parameter            | Type            | Default     | Description                                                 |
-|----------------------|-----------------|-------------|-------------------------------------------------------------|
-| `TradeSymbol`        | string          | `EURUSD`    | Symbol for analysis                                         |
-| `Timeframe`          | ENUM_TIMEFRAMES | `PERIOD_H1` | Timeframe for analysis                                      |
-| `LookbackPeriod`     | int             | `20`        | Bars used to compute rolling mean and standard deviation    |
-| `DeviationThreshold` | double          | `2.0`       | Minimum deviation in standard deviations to trigger alert   |
-| `EnableAlerts`       | bool            | `true`      | Fire an on-screen/sound alert                               |
-| `EnableEmail`        | bool            | `false`     | Send an email notification                                  |
-| `EnablePush`         | bool            | `false`     | Send a mobile push notification                             |
+| Parameter            | Type   | Default                    | Description                                      |
+|----------------------|--------|----------------------------|--------------------------------------------------|
+| `SymbolsList`        | string | `EURUSD,GBPUSD,USDJPY`     | Comma-separated list of symbols to test          |
+| `TimeframesList`     | string | `H1,D1`                    | Comma-separated list of timeframes               |
+| `RiskPercentagesList`| string | `1.0,2.0`                  | Comma-separated list of risk percentages         |
+| `StopLossesList`     | string | `50,100`                   | Comma-separated stop loss values in pips         |
+| `TakeProfitsList`    | string | `100,200`                  | Comma-separated take profit values in pips       |
 
 ---
 
-## Alert Message Format
+## Output File Format
+
+Each `.set` file is written to the MT4 Files sandbox (`MQL4/Files/`) in this structure:
 
 ```
-Extreme Deviation Above Mean detected on EURUSD (Timeframe: PERIOD_H1)
-Current Price: 1.08620
-Mean Price: 1.08210
-Std Dev: 0.00180
-Deviation: 2.28 SD
+[Inputs]
+Symbol=EURUSD
+Timeframe=H1
+RiskPercent=1.0
+StopLoss=50
+TakeProfit=100
 ```
+
+Filename example: `EURUSD_H1_1.0_50_100.set`
 
 ---
 
 ## Installation
 
-1. Copy `Bayesian_001.mq4` to `MQL4/Scripts/` in your MT4 data folder
+1. Copy `Batch_Backtester_001.mq4` to `MQL4/Scripts/` in your MT4 data folder
 2. Compile in MetaEditor (F7)
 3. Drag onto any chart from Navigator → Scripts
-4. Configure inputs and click **OK**
+4. Configure input lists and click **OK**
+5. Retrieve generated `.set` files from `%APPDATA%\MetaQuotes\Terminal\<ID>\MQL4\Files\`
 
 ---
 
